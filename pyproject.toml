@@ -1,0 +1,10 @@
+[project]
+name = "disentangle-ssl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fairseq>=0.12.2",
+    "speechbrain>=1.0.3",
+]
