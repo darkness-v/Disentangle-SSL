@@ -7,7 +7,7 @@ class SSLModel(nn.Module):
     def __init__(self, device):
         super(SSLModel, self).__init__()
         ckpt_path = 'facebook/wav2vec2-xls-r-300m'
-        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task_from_hf_hub([ckpt_path])
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task_from_hf_hub(ckpt_path)
         self.model = model[0].to(device)
         self.device = device
         self.out_dim = 1024
@@ -31,7 +31,6 @@ class SpeakerEncoder(nn.Module):
             savedir="pretrained_models/spkrec-ecapa-voxceleb"
         )
         self.device = device
-        self.out_dim = self.classifier.mods.linear.out_features
     
     def forward(self, x):
         """
@@ -39,21 +38,25 @@ class SpeakerEncoder(nn.Module):
         Returns:
             embedding: [B, out_dim]
         """
-        encoder_output = self.classifier.mods.encoder(x)
-        embedding = self.classifier.mods.attn(encoder_output)
+        x_lengths = torch.ones(x.size(0), device = self.device)
+        embedding = self.classifier.mods.embedding_model(x, x_lengths)
         return embedding
 
 class DisentangleSSLModel(nn.Module):
-    def __init__(self, ssl_model, speaker_encoder, proj_dim):
+    def __init__(self, proj_dim=80, ssl_dim =768, device='cpu'):
         super(DisentangleSSLModel, self).__init__()
-        self.ssl_model = ssl_model
-        self.speaker_encoder = speaker_encoder
-        self.proj_ssl = nn.Linear(self.ssl_model.out_dim, proj_dim)
-        self.proj_spk = nn.Linear(self.speaker_encoder.out_dim, proj_dim)
+        self.ssl_model = SSLModel(
+            device=device
+        )
+        self.speaker_encoder = SpeakerEncoder(
+            device=device
+        )
+        self.proj_ssl = nn.Linear(ssl_dim, proj_dim)
+        self.proj_neutral = nn.Linear(ssl_dim, proj_dim)
     def forward(self, x, num_emotions = 5):
         ssl_feats = []
         for i in range(num_emotions):
-            ssl_feat = self.ssl_model.extract_features(x[:, i].squeeze(-1)) # [B, T, ssl_dim]
+            ssl_feat = self.ssl_model.extract_features(x[:, i].squeeze(1)) # [B, T, ssl_dim]
             ssl_feats.append(ssl_feat)
         
         ssl_feat = torch.mean(torch.stack(ssl_feats, dim=0), dim=0)  # [B, T, ssl_dim]
