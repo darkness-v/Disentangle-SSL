@@ -62,11 +62,11 @@ class DisentangleSSLModel(nn.Module):
 
         neutral_x = x[:, 0].squeeze(-1)  # [B, T]
         neutral_x_ssl = self.ssl_model.extract_features(neutral_x)  # [B, T, ssl_dim]
-        spk_emb = self.speaker_encoder(neutral_x_ssl)  
-        
+        neutral_x_ssl = self.proj_ssl(neutral_x_ssl)  # [B, T, proj_dim]
+        spk_emb = self.speaker_encoder(neutral_x_ssl)  # [B, spk_emb_dim]
+
         sim = F.cosine_similarity(speaker_identity, spk_emb, dim=-1)
         loss = 1.0 - sim
         batch_loss = loss.mean()
-    
         
         return loss, batch_loss
